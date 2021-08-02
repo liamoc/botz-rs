@@ -1,5 +1,5 @@
 #![allow(clippy::needless_pass_by_value)] // False positives with `impl ToString`
-
+#![allow(dead_code)]
 use egui::{widgets::Label, *};
 use std::ops::RangeInclusive;
 
