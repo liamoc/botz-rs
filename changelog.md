@@ -1,4 +1,6 @@
 
+- Can now highlight links based on their stress level
+
 * Version 1.1 (2nd Aug 2021)
 
 - Can now use the DEL or Backspace keys to delete vertices

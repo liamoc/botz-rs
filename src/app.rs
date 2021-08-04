@@ -44,10 +44,13 @@ struct DisplayOptions {
     num_wheel_spokes: u8,
     shade_wheels: bool,
     shade_body: bool,
+    shade_stress: bool,
     zoom2x: bool,
     shade_color: Color32,
     link_color:Color32,
     link_handle_color: Color32,
+    link_compressed_color: Color32,
+    link_stretched_color: Color32,
     vertex_color:Color32,
     background_color:Color32,
     selection_color:Color32,
@@ -444,6 +447,22 @@ impl State {
             rect.left_top() + egui::Vec2::new(1.0*x as f32, rect.height() - (1.0 * y) as f32)
         }
     }
+    fn mix_colors(fg : Color32, bg : Color32, t : f64) -> egui::Color32 {
+        let fgr = fg.r() as f64 / 255.0;
+        let fgg = fg.g() as f64 / 255.0;
+        let fgb = fg.b() as f64 / 255.0;
+        let fga = fg.a() as f64 / 255.0;
+        let bgr = bg.r() as f64 / 255.0;
+        let bgg = bg.g() as f64 / 255.0;
+        let bgb = bg.b() as f64 / 255.0;
+        let bga = bg.a() as f64 / 255.0;
+        let r = ((1.0 - t) * fgr * fgr + t * bgr * bgr).sqrt();
+        let g = ((1.0 - t) * fgg * fgg + t * bgg * bgg).sqrt();
+        let b = ((1.0 - t) * fgb * fgb + t * bgb * bgb).sqrt();
+        let a = ((1.0 - t) * fga * fga + t * bga * bga).sqrt();
+        
+        return Color32::from_rgba_unmultiplied((r*255.0) as u8, (g*255.0) as u8, (b*255.0) as u8, (a*255.0) as u8);
+    }
     fn draw(&mut self, ui: &mut egui::Ui, rect: egui::Rect) {
         
         if self.display_options.show_links {
@@ -459,9 +478,27 @@ impl State {
                 } else {
                     self.display_options.link_handle_color
                 };
-                
-                
-                self.draw_playfield_line(ui,&rect,src.x, src.y, dest.x, dest.y,self.display_options.link_color);
+                let color = if self.display_options.shade_stress {
+                    let xer = (dest.x + dest.momentum_x) - (src.x + src.momentum_x);
+                    let yer = (dest.y + dest.momentum_y) - (src.y + src.momentum_y);
+                    let leng = (xer * xer + yer * yer).abs().sqrt();
+                    let ratio = link.length / leng;
+                    
+                    if ratio < 0.5 {
+                        self.display_options.link_stretched_color
+                    } else if ratio < 1.0 {
+                        let t = (ratio - 0.5) * 2.0;
+                        Self::mix_colors(self.display_options.link_stretched_color, self.display_options.link_color,  t)
+                    } else if ratio < 1.5 {
+                        let t = (ratio - 1.0) * 2.0;
+                        Self::mix_colors(self.display_options.link_compressed_color, self.display_options.link_color, 1.0- t)
+                    } else {
+                        self.display_options.link_compressed_color
+                    }
+                } else {
+                    self.display_options.link_color
+                };
+                self.draw_playfield_line(ui,&rect,src.x, src.y, dest.x, dest.y,color);
                 if self.display_options.show_link_handles {
                     self.draw_playfield_line( ui,&rect,link.mid_x -5.0, link.mid_y, link.mid_x + 5.0, link.mid_y,color1);
                     self.draw_playfield_line( ui,&rect,link.mid_x, link.mid_y-5.0, link.mid_x , link.mid_y+ 5.0,color1);
@@ -758,8 +795,24 @@ fn update(&mut self, ctx: &egui::CtxRef, _: &mut epi::Frame<'_>) {
                     ui.add_space(4.0);
                     egui::widgets::color_picker::color_edit_button_srgba(ui,&mut self.display_options.link_handle_color,egui::widgets::color_picker::Alpha::OnlyBlend);
                 }
-                
-                
+                ui.end_row();
+                ui.add_space(8.0);
+                ui.checkbox(&mut self.display_options.shade_stress, "Link Stress");
+                ui.add_space(-8.0);
+                if self.display_options.shade_stress {
+                    ui.end_row();
+                    ui.add_space(12.0);
+                    ui.label("Compressed");
+                    ui.add_space(-12.0);
+                    ui.add_space(4.0);
+                    egui::widgets::color_picker::color_edit_button_srgba(ui,&mut self.display_options.link_compressed_color,egui::widgets::color_picker::Alpha::OnlyBlend);
+                    ui.end_row();
+                    ui.add_space(12.0);
+                    ui.label("Stretched");
+                    ui.add_space(-12.0);
+                    ui.add_space(4.0);
+                    egui::widgets::color_picker::color_edit_button_srgba(ui,&mut self.display_options.link_stretched_color,egui::widgets::color_picker::Alpha::OnlyBlend);
+                }
             }
             ui.end_row();
             
@@ -1094,10 +1147,13 @@ pub fn make_start() -> State {
             num_wheel_spokes: 6,
             shade_body: true,
             shade_wheels: true,
+            shade_stress: true,
             background_color: egui::Color32::from_rgba_premultiplied(255, 255, 245, 255),
             shade_color: egui::Color32::from_rgba_premultiplied(0, 86, 116, 45),
             wheel_shade_color: egui::Color32::from_rgba_unmultiplied(0, 255, 255, 64),
-            link_color: egui::Color32::from_rgb(0, 0, 255),
+            link_color: egui::Color32::from_rgb(0, 0, 0),
+            link_stretched_color: egui::Color32::from_rgb(255, 0, 0),
+            link_compressed_color: egui::Color32::from_rgb(0, 0, 255),
             selection_color: egui::Color32::from_rgb(255, 0, 255),
             hover_color: egui::Color32::from_rgb(255, 0, 0),
             vertex_color: egui::Color32::from_rgb(0, 0, 0),
